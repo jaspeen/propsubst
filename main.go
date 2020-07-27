@@ -13,7 +13,7 @@ import (
 	"strings"
 )
 
-var version = "0.1.0"
+var version = "0.2.0"
 
 // borrowed from https://gist.github.com/slimsag/14c66b88633bd52b7fa710349e4c6749
 func replaceAllSubmatchFunc(re *regexp.Regexp, src []byte, repl func([][]byte) [][]byte, n int) []byte {
@@ -60,7 +60,7 @@ func replaceAllSubmatchFunc(re *regexp.Regexp, src []byte, repl func([][]byte) [
 	return result
 }
 
-var placeholderRegexp = regexp.MustCompile(`(?m)[^\\]{1}(\$\{[a-zA-Z\.0-9-_:]+\})`)
+var placeholderRegexp = regexp.MustCompile(`(?mU)[^\\]{1}(\$\{[^\n\r]+[^\\]{1}\})`)
 
 // substitute ${propname} but ignore \${propname}
 func substitute(props map[string]string, text string, notFoundErr bool, foundProps map[string]string) (string, error) {
@@ -68,9 +68,21 @@ func substitute(props map[string]string, text string, notFoundErr bool, foundPro
 	return string(replaceAllSubmatchFunc(placeholderRegexp, []byte(text), func(groups [][]byte) [][]byte {
 		for idx, prop := range groups {
 			filtered := strings.TrimSpace(string(prop))
-			propName := strings.TrimSpace(filtered[2 : len(filtered)-1])
-			propVal, ok := props[propName]
+			propName := filtered[2 : len(filtered)-1]
+			parsedPropName := propName
+			defaultPropValue := "" // empty string is normal default value so check existence of default via sepIdx
+			sepIdx := strings.IndexByte(propName, ':')
+			if sepIdx >= 0 {
+				parsedPropName = strings.TrimSpace(propName[0:sepIdx])
+				defaultPropValue = propName[sepIdx+1 : len(propName)]
+			}
+
+			propVal, ok := props[parsedPropName]
 			if !ok {
+				if sepIdx >= 0 {
+					groups[idx] = []byte(defaultPropValue)
+					foundProps[filtered] = defaultPropValue
+				}
 				if notFoundErr {
 					errorFromReplace = errors.New("Property '" + propName + "' not found")
 				}
@@ -174,9 +186,15 @@ func main() {
 
 	inPlace := flag.Bool("i", false, "Do substitution in place")
 	failIfNotFound := flag.Bool("fail-not-found", false, "Fail if no property required by placehold found in source")
+	printVersion := flag.Bool("v", false, "Print version")
 
 	flag.Parse()
 	files := flag.Args()
+
+	if *printVersion {
+		fmt.Println(version)
+		return
+	}
 
 	err := execute(propertyFiles, propertiesSources, files, *inPlace, *failIfNotFound)
 	if err != nil {

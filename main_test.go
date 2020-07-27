@@ -49,6 +49,7 @@ func TestSubstitute(t *testing.T) {
 	And this should be ignored - \${test.known.property}
 	And this is another property -\ \ ${test.other}
 	And this is unknown property - ${test.unknown}
+	And this is default property - ${test.unknown.but.default:http://defaultPropertyValue:666?param1=val1&param2=val\}2#test}
 	`
 
 	foundProps := make(map[string]string)
@@ -63,11 +64,13 @@ func TestSubstitute(t *testing.T) {
 	And this should be ignored - \${test.known.property}
 	And this is another property -\ \ otherpropertyvalue
 	And this is unknown property - ${test.unknown}
+	And this is default property - http://defaultPropertyValue:666?param1=val1&param2=val\}2#test
 	`, res)
 
-	assert.Equal(t, 2, len(foundProps))
+	assert.Equal(t, 3, len(foundProps))
 	assert.Equal(t, "knownpropertyvalue", foundProps["${test.known.property}"])
 	assert.Equal(t, "otherpropertyvalue", foundProps["${test.other}"])
+	assert.Equal(t, "http://defaultPropertyValue:666?param1=val1&param2=val\\}2#test", foundProps["${test.unknown.but.default:http://defaultPropertyValue:666?param1=val1&param2=val\\}2#test}"])
 }
 
 func TestSubstituteFailNotFound(t *testing.T) {
